@@ -24,7 +24,7 @@ const leaveRoutes = require("./routes/leaveRoutes");
 const adminNotificationsRouter = require("./routes/adminattendenceNotifications");
 const adminLeaveRoutes = require("./routes/adminLeaveRoutes");
  const tenantDocsRoutes = require("./routes/tenantDocs");
-
+const invitesRouter = require("./routes/invites");
 dotenv.config();
 
 const app = express();
@@ -74,7 +74,7 @@ app.use("/api/tenant", tenantRoutes);
 
 // Payments
 app.use("/api/payments", paymentRoutes);
-
+app.use("/api/invites", invitesRouter);
 // Leaves
 app.use("/api/tenant/leaves", leaveRoutes);
 app.use("/api/staff-expenses", require("./routes/staffExpenseRoutes"));

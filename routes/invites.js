@@ -229,29 +229,35 @@ router.get("/:token", async (req, res) => {
 router.put("/:token/submit", async (req, res) => {
   try {
     const token = req.params.token;
-
-    const inv = await Invite.findOne({ token });
-    if (!inv) return res.status(404).json({ ok: false, message: "Invalid link" });
-
     const now = new Date();
-    if (inv.usedAt) return res.status(409).json({ ok: false, message: "Link already used" });
-    if (inv.expiresAt && inv.expiresAt <= now)
-      return res.status(410).json({ ok: false, message: "Link expired" });
 
-    const formId = inv.usedByFormId; // this is your draft form id
+    // ✅ claim token (atomic): only one request wins
+    const inv = await Invite.findOneAndUpdate(
+      {
+        token,
+        usedAt: null,
+        $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
+      },
+      { $set: { usedAt: now } },
+      { new: true }
+    );
+
+    if (!inv) {
+      // either invalid / expired / already used
+      const exists = await Invite.findOne({ token }).lean();
+      if (!exists) return res.status(404).json({ ok: false, message: "Invalid link" });
+      if (exists.expiresAt && exists.expiresAt <= now) return res.status(410).json({ ok: false, message: "Link expired" });
+      return res.status(409).json({ ok: false, message: "Link already used" });
+    }
+
+    const formId = inv.usedByFormId;
     if (!formId) return res.status(400).json({ ok: false, message: "Draft form missing" });
 
-    // ✅ update same form
     const updated = await Form.findByIdAndUpdate(
       formId,
       { $set: { ...req.body } },
       { new: true }
     );
-
-    // ✅ mark invite used (one-time)
-    inv.usedAt = now;
-    inv.usedByFormId = updated?._id || formId;
-    await inv.save();
 
     return res.json({ ok: true, message: "Saved", form: updated });
   } catch (err) {
@@ -259,5 +265,6 @@ router.put("/:token/submit", async (req, res) => {
     res.status(500).json({ ok: false, message: "Server error" });
   }
 });
+
 
 module.exports = router;
