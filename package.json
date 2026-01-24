@@ -8,6 +8,7 @@
     "express": "^4.21.2",
     "fs": "^0.0.1-security",
     "fuse.js": "^7.1.0",
+    "imagekit": "^6.0.0",
     "json2xls": "^0.1.2",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.511.0",
