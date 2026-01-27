@@ -385,5 +385,39 @@ router.put("/:roomId", async (req, res) => {
     res.status(500).json({ message: "Internal server error", error: err.message });
   }
 });
+// PATCH /api/rooms/:roomId/bed/:bedNo  -> update bed price (and/or bedCategory)
+router.patch("/:roomId/bed/:bedNo", async (req, res) => {
+  try {
+    const { roomId, bedNo } = req.params;
+    const { price, bedCategory } = req.body;
+
+    if (price !== undefined && (Number(price) < 0 || Number.isNaN(Number(price)))) {
+      return res.status(400).json({ message: "Invalid price" });
+    }
+
+    const update = {};
+    if (price !== undefined) update["beds.$.price"] = Number(price);
+    if (bedCategory !== undefined) update["beds.$.bedCategory"] = String(bedCategory);
+
+    if (!Object.keys(update).length) {
+      return res.status(400).json({ message: "Nothing to update" });
+    }
+
+    const room = await Room.findOneAndUpdate(
+      { _id: roomId, "beds.bedNo": String(bedNo) },
+      { $set: update },
+      { new: true }
+    );
+
+    if (!room) {
+      return res.status(404).json({ message: "Room/Bed not found" });
+    }
+
+    res.json({ message: "Bed updated", room });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 module.exports = router;
