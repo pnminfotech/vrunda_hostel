@@ -110,6 +110,12 @@ const formSchema = new mongoose.Schema(
           ],
           default: "Self",
         },
+        // ✅ Photo transform for UI rotation/flip
+        transform: {
+          rotate: { type: Number, default: 0 },
+          flipX: { type: Boolean, default: false },
+          flipY: { type: Boolean, default: false },
+        },
       },
     ],
   },

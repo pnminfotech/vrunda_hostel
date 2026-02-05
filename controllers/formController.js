@@ -1,4 +1,5 @@
 // controllers/formController.js
+const mongoose = require("mongoose");
 const Form = require("../models/formModels");
 const Archive = require("../models/archiveSchema");
 const DuplicateForm = require("../models/DuplicateForm");
@@ -199,38 +200,73 @@ const getMonthYear = (date) => {
 
 const updateForm = async (req, res) => {
   const { id } = req.params;
-  const { rentAmount, date, month, paymentMode } = req.body;
+
+  // supports both old and new payloads
+  const {
+    rentAmount,
+    date,
+    paymentMode,
+    month,       // old: "Sep-25"
+    months,      // new: ["Jan-26","Feb-26"]
+    billingCycle // optional
+  } = req.body;
 
   try {
     const form = await Form.findById(id);
     if (!form) return res.status(404).json({ message: "Form not found" });
 
-    const rentIndex = form.rents.findIndex((rent) => rent.month === month);
+    if (!Array.isArray(form.rents)) form.rents = [];
 
-    if (rentIndex !== -1) {
-      form.rents[rentIndex] = {
-        rentAmount: Number(rentAmount),
-        date: new Date(date),
-        month,
-        paymentMode,
+    // ✅ normalize months list
+    const monthsList = Array.isArray(months) && months.length
+      ? months
+      : (typeof month === "string" && month.trim() ? [month.trim()] : []);
+
+    if (!monthsList.length) {
+      return res.status(400).json({ message: "month or months[] is required" });
+    }
+
+    // ✅ normalize date
+    const dt = date ? new Date(date) : new Date();
+    if (isNaN(dt.getTime())) {
+      return res.status(400).json({ message: "Invalid date" });
+    }
+
+    const amt = Number(rentAmount);
+    if (!Number.isFinite(amt)) {
+      return res.status(400).json({ message: "Invalid rentAmount" });
+    }
+
+    // ✅ upsert each month
+    for (const mon of monthsList) {
+      const monKey = String(mon || "").trim();
+      if (!monKey) continue;
+
+      const idx = form.rents.findIndex((r) => r.month === monKey);
+
+      const row = {
+        rentAmount: amt,
+        date: dt,
+        month: monKey,
+        paymentMode: paymentMode || "Cash",
+        ...(billingCycle ? { billingCycle } : {}),
       };
-    } else {
-      form.rents.push({
-        rentAmount: Number(rentAmount),
-        date: new Date(date),
-        month,
-        paymentMode,
-      });
+
+      if (idx !== -1) {
+        form.rents[idx] = { ...form.rents[idx], ...row };
+      } else {
+        form.rents.push(row);
+      }
     }
 
     await form.save({ validateModifiedOnly: true });
-
-    res.status(200).json(form);
+    return res.status(200).json(form);
   } catch (error) {
     console.error("⚠ Update rent error:", error);
-    res.status(500).json({ message: "Error updating rent: " + error.message });
+    return res.status(500).json({ message: "Error updating rent: " + error.message });
   }
 };
+
 
 
 const deleteForm = async (req, res) => {

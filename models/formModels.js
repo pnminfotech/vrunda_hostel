@@ -126,53 +126,61 @@ const formSchema = new mongoose.Schema(
     dob: { type: Date, required: false },
 
     baseRent: { type: Number },
-    rents: [
-      {
-        rentAmount: { type: Number, required: true },
-        date: { type: Date, required: true }, // payment date
-        month: { type: String, required: true }, // "Dec-25"
-        paymentMode: {
-          type: String,
-          enum: ["Cash", "Online"],
-          // default: "Cash",
-          required: true,
-        },
-        default: [],
+  rents: {
+  type: [
+    {
+      rentAmount: { type: Number, required: true },
+      date: { type: Date, required: true }, // payment date
+      month: { type: String, required: true }, // "Dec-25"
+      paymentMode: {
+        type: String,
+        enum: ["Cash", "Online"],
+        required: true,
+        default: "Cash",
       },
-      
-    ],
+      billingCycle: {
+        type: String,
+        enum: ["Monthly", "Quarterly", "Half-Yearly", "Yearly"],
+        default: "Monthly",
+      },
+    },
+  ],
+  default: [],
+},
+
 
     leaveDate: { type: String },
 
     // ✅ Updated: supports both legacy disk URLs and DB-backed files
-    documents: [
-      {
-        fileName: { type: String },
+    // ✅ Documents (ImageKit direct)
+documents: [
+  {
+    fileName: { type: String },
 
-        // legacy (disk) link — keep for old records
-        url: { type: String },
+    // ✅ ImageKit direct URL
+    url: { type: String },
 
-        // NEW: DB-backed fields (DocumentFile model)
-        fileId: { type: mongoose.Schema.Types.ObjectId, ref: "DocumentFile" },
-        contentType: { type: String },
-        size: { type: Number },
-        relation: {
-          type: String,
-          enum: [
-            "Self",
-            "Father",
-            "Mother",
-            "Husband",
-            "Sister",
-            "Brother",
-            "Self Aadhaar Card",
-            "Parent Aadhaar Card",
-            "Tenant Photo",
-          ],
-          default: "Self",
-        },
-      },
-    ],
+    // ✅ ImageKit fileId is STRING (not ObjectId)
+    fileId: { type: String },
+
+    // ✅ Optional but useful (ImageKit filePath)
+    filePath: { type: String },
+
+    contentType: { type: String },
+    size: { type: Number },
+
+    // keep relation simple (or keep your enum if you want)
+    relation: { type: String, default: "Document" },
+
+    // ✅ Photo transform for UI rotation/flip
+    transform: {
+      rotate: { type: Number, default: 0 },
+      flipX: { type: Boolean, default: false },
+      flipY: { type: Boolean, default: false },
+    },
+  },
+],
+
   },
   { timestamps: true }
 );
