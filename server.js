@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
+const mongoose = require("mongoose");
 
 dotenv.config();
 
@@ -28,6 +29,8 @@ const adminLeaveRoutes = require("./routes/adminLeaveRoutes");
 const tenantDocsRoutes = require("./routes/tenantDocs");
 const invitesRouter = require("./routes/invites");
 const holidayRoutes = require("./routes/holidayRoutes");
+const messageStatsRoutes = require("./routes/messageStats");
+const { startRentDueReminderJob } = require("./jobs/rentDueReminderJob");
 
 const app = express();
 
@@ -43,9 +46,15 @@ app.get("/.well-known/appspecific/com.chrome.devtools.json", (_req, res) =>
   res.sendStatus(204)
 );
 
-app.get("/api/health", (_req, res) =>
-  res.json({ ok: true, env: process.env.NODE_ENV || "dev" })
-);
+app.get("/api/health", (_req, res) => {
+  const databaseConnected = mongoose.connection.readyState === 1;
+
+  return res.status(databaseConnected ? 200 : 503).json({
+    ok: databaseConnected,
+    database: databaseConnected ? "connected" : "disconnected",
+    env: process.env.NODE_ENV || "dev",
+  });
+});
 
 // Routes
 app.use("/api", authRoutes);
@@ -71,11 +80,24 @@ app.use("/api", require("./routes/notifications"));
 app.use("/api/admin", adminLeaveRoutes);
 app.use("/api", require("./routes/tenantAttendance"));
 app.use("/api/admin", adminNotificationsRouter);
-
-connectDB();
+app.use("/api", messageStatsRoutes);
 
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => {
-  console.log(`✅ Server running: http://localhost:${PORT}`);
-  console.log(`✅ Health:        http://localhost:${PORT}/api/health`);
-});
+
+async function startServer() {
+  try {
+    // Do not accept login requests until the database is ready.
+    await connectDB();
+    startRentDueReminderJob();
+
+    app.listen(PORT, () => {
+      console.log(`Server running: http://localhost:${PORT}`);
+      console.log(`Health:        http://localhost:${PORT}/api/health`);
+    });
+  } catch (error) {
+    console.error("Database startup failed:", error.message);
+    process.exit(1);
+  }
+}
+
+startServer();
