@@ -63,18 +63,23 @@ const resolveParentMobile = (tenant) =>
       tenant?.tenantParentPhone ||
       tenant?.parentMobile ||
       tenant?.parentPhone ||
+      tenant?.relative1Phone ||
+      tenant?.relative2Phone ||
       ""
   ).trim();
 
 const resolveHolidayRecipients = (tenant) => {
   const parentMobile = resolveParentMobile(tenant);
-
+  const tenantMobile = normalizeIndianPhone(tenant?.phoneNo);
   const recipients = [];
   const parentNorm = normalizeIndianPhone(parentMobile);
   if (parentNorm) recipients.push(parentNorm);
+  // Older/imported records may not have a separate parent number. In that
+  // case send the holiday notification to the tenant's registered mobile.
+  if (!recipients.length && tenantMobile) recipients.push(tenantMobile);
 
   return {
-    parentMobile: parentNorm || "",
+    parentMobile: parentNorm || tenantMobile || "",
     recipients,
   };
 };

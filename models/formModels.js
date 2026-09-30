@@ -122,6 +122,7 @@ const formSchema = new mongoose.Schema(
     relative2Phone: { type: String, default: "" },
 
     floorNo: { type: String },
+    category: { type: String, default: "" },
     bedNo: { type: String },
     companyAddress: { type: String },
     dateOfJoiningCollege: { type: Date, required: false },

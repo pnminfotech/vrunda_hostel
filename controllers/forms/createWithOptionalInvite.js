@@ -146,6 +146,21 @@ const Form = require("../../models/formModels");
 const {
   assignNextSrNoAndUpdateCounter,
 } = require("../formController");
+const { sendAdmissionSMS, bumpMessageStat } = require("../../routes/formWithDocs");
+
+async function sendAdmissionSmsWithoutBlocking(tenant) {
+  try {
+    const sms = await sendAdmissionSMS({
+      phoneNo: tenant.phoneNo, tenantName: tenant.name, roomNo: tenant.roomNo,
+      bedNo: tenant.bedNo, joiningDate: tenant.joiningDate, depositAmount: tenant.depositAmount,
+    });
+    await bumpMessageStat("admission_sms", sms);
+    return sms;
+  } catch (error) {
+    console.error("admission SMS error:", error.message || error);
+    return { status: "failed", error: error.message || "Could not send admission SMS" };
+  }
+}
 
 // Always assign SrNo on server using shared helper
 async function createFormWithSrNo(rest, session) {
@@ -214,7 +229,8 @@ async function createWithOptionalInvite(req, res) {
   if (!inviteToken) {
     try {
       const saved = await createFormWithSrNo(rest, null);
-      return res.status(201).json(saved);
+      const admissionSms = await sendAdmissionSmsWithoutBlocking(saved);
+      return res.status(201).json({ ...saved.toObject(), admissionSms });
     } catch (err) {
       console.error("create form (no invite) error:", err);
       const isDupSr =
@@ -275,7 +291,8 @@ async function createWithOptionalInvite(req, res) {
       }
     }
 
-    return res.status(201).json(created);
+    const admissionSms = await sendAdmissionSmsWithoutBlocking(created);
+    return res.status(201).json({ ...created.toObject(), admissionSms });
   } catch (err) {
     console.error("create (with invite) error:", err);
     const isDupSr =

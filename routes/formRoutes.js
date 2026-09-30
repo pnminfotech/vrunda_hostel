@@ -28,6 +28,7 @@ const {
 const {
   createWithOptionalInvite,
 } = require("../controllers/forms/createWithOptionalInvite");
+const { importTenants } = require("../controllers/forms/importTenants");
 
 // NEW: invite controller routes
 const { createInvite, validateInvite } = require("../controllers/invites");
@@ -39,6 +40,7 @@ const { createInvite, validateInvite } = require("../controllers/invites");
 //       instead of trusting srNo from frontend.
 // ───────────────────────────────────────────────────────────────────────────────
 router.post("/forms", createWithOptionalInvite);
+router.post("/forms/import", importTenants);
 
 // For UI to show next SrNo (server still assigns the real one)
 router.get("/forms/count", getNextSrNo);
@@ -79,10 +81,40 @@ router.put("/form/:id", updateForm);
 
 // cancel leave inline route
 router.post("/cancel-leave", async (req, res) => {
-  const { id } = req.body;
+  const { id, roomNo, bedNo, floorNo, category, baseRent } = req.body;
   try {
-    await Form.findByIdAndUpdate(id, { $unset: { leaveDate: "" } });
-    res.json({ success: true });
+    const tenant = await Form.findById(id);
+    if (!tenant) return res.status(404).json({ success: false, message: "Tenant not found" });
+
+    const nextRoomNo = String(roomNo || tenant.roomNo || "").trim();
+    const nextBedNo = String(bedNo || tenant.bedNo || "").trim();
+    const occupants = await Form.find({
+      _id: { $ne: tenant._id }, roomNo: nextRoomNo, bedNo: nextBedNo,
+    }).select("name leaveDate").lean();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const occupiedBy = occupants.find((item) => {
+      if (!item.leaveDate) return true;
+      const leave = new Date(item.leaveDate);
+      if (Number.isNaN(leave.getTime())) return true;
+      leave.setHours(0, 0, 0, 0);
+      return leave >= today;
+    });
+    if (occupiedBy) {
+      return res.status(409).json({
+        success: false,
+        message: `This bed is currently occupied by ${occupiedBy.name || "another tenant"}.`,
+      });
+    }
+
+    tenant.roomNo = nextRoomNo;
+    tenant.bedNo = nextBedNo;
+    if (floorNo !== undefined) tenant.floorNo = floorNo;
+    if (category !== undefined) tenant.category = category;
+    if (baseRent !== undefined && Number(baseRent) > 0) tenant.baseRent = Number(baseRent);
+    tenant.leaveDate = undefined;
+    await tenant.save();
+    res.json({ success: true, tenant });
   } catch (error) {
     res.status(500).json({ success: false, error: "Error cancelling leave" });
   }

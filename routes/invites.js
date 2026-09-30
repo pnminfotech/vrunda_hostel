@@ -100,6 +100,7 @@ const express = require("express");
 const crypto = require("crypto");
 const Invite = require("../models/Invite");
 const Form = require("../models/formModels");
+const { sendAdmissionSMS, bumpMessageStat } = require("./formWithDocs");
 
 const router = express.Router();
 
@@ -259,7 +260,25 @@ router.put("/:token/submit", async (req, res) => {
       { new: true }
     );
 
-    return res.json({ ok: true, message: "Saved", form: updated });
+    // A tenant submitting the shared admission form completes the admission
+    // here (not through /forms-with-docs), so send the same confirmation SMS.
+    let admissionSms;
+    try {
+      admissionSms = await sendAdmissionSMS({
+        phoneNo: updated.phoneNo,
+        tenantName: updated.name,
+        roomNo: updated.roomNo,
+        bedNo: updated.bedNo,
+        joiningDate: updated.joiningDate,
+        depositAmount: updated.depositAmount,
+      });
+      await bumpMessageStat("admission_sms", admissionSms);
+    } catch (smsError) {
+      admissionSms = { status: "failed", error: smsError.message || "Could not send admission SMS" };
+      console.error("Invite admission SMS failed:", smsError.message || smsError);
+    }
+
+    return res.json({ ok: true, message: "Saved", form: updated, admissionSms });
   } catch (err) {
     console.error("Invite submit failed:", err);
     res.status(500).json({ ok: false, message: "Server error" });

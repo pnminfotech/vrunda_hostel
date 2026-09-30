@@ -233,8 +233,8 @@ const updateForm = async (req, res) => {
     }
 
     const amt = Number(rentAmount);
-    if (!Number.isFinite(amt)) {
-      return res.status(400).json({ message: "Invalid rentAmount" });
+    if (!Number.isFinite(amt) || amt <= 0) {
+      return res.status(400).json({ message: "rentAmount must be greater than zero" });
     }
 
     // ✅ upsert each month
@@ -253,7 +253,12 @@ const updateForm = async (req, res) => {
       };
 
       if (idx !== -1) {
-        form.rents[idx] = { ...form.rents[idx], ...row };
+        // Payments for the same month accumulate rather than overwrite.
+        form.rents[idx] = {
+          ...form.rents[idx],
+          ...row,
+          rentAmount: Number(form.rents[idx].rentAmount || 0) + amt,
+        };
       } else {
         form.rents.push(row);
       }

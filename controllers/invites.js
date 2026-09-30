@@ -283,6 +283,16 @@ async function assignNextSrNoAndUpdateCounter() {
   return updated.seq; // NEXT srNo
 }
 
+function hasLeaveDatePassed(leaveDate) {
+  if (!leaveDate) return false;
+  const leave = new Date(leaveDate);
+  if (Number.isNaN(leave.getTime())) return false;
+  leave.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return leave < today;
+}
+
 // ===============================
 // CREATE INVITE ✅ (creates draft form + links invite)
 // ===============================
@@ -316,7 +326,12 @@ exports.createInvite = async (req, res) => {
     const dep = Number(prefill.depositAmount ?? 0);
 
     // ✅ Optional: pre-check bed occupancy (faster error)
-    const existing = await Form.findOne({ category, roomNo, bedNo }).select("_id").lean();
+    // Tenants whose leave date has passed are shown in the Leaved section;
+    // their bed is available even before the archive job removes the record.
+    const bedTenants = await Form.find({ roomNo, bedNo })
+      .select("_id leaveDate")
+      .lean();
+    const existing = bedTenants.find((tenant) => !hasLeaveDatePassed(tenant.leaveDate));
     if (existing) {
       return res.status(409).json({
         ok: false,

@@ -560,4 +560,7 @@ router.post("/forms-with-docs", upload.array("documents", 10), async (req, res) 
   }
 });
 
+// Reused by every tenant-creation path (including spreadsheet imports).
+router.sendAdmissionSMS = sendAdmissionSMS;
+router.bumpMessageStat = bumpMessageStat;
 module.exports = router;
